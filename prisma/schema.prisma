@@ -1,0 +1,134 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "cockroachdb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          Role      @default(STUDENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  studentTests  StudentTest[]
+  teacherTests  Test[]    @relation("TeacherTests")
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+model Subject {
+  id        String    @id @default(uuid())
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  questions Question[]
+  tests     TestSubject[]
+}
+
+model Question {
+  id            String    @id @default(uuid())
+  text          String
+  options       Json      // Array of options
+  correctOption String
+  solution      String?
+  subjectId     String
+  subject       Subject   @relation(fields: [subjectId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  testQuestions TestQuestion[]
+}
+
+model Test {
+  id            String    @id @default(uuid())
+  title         String
+  description   String?
+  duration      Int       // in minutes
+  startTime     DateTime
+  endTime       DateTime
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  teacherId     String
+  teacher       User      @relation("TeacherTests", fields: [teacherId], references: [id])
+  subjects      TestSubject[]
+  questions     TestQuestion[]
+  studentTests  StudentTest[]
+}
+
+model TestSubject {
+  id        String    @id @default(uuid())
+  testId    String
+  subjectId String
+  test      Test      @relation(fields: [testId], references: [id])
+  subject   Subject   @relation(fields: [subjectId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([testId, subjectId])
+}
+
+model TestQuestion {
+  id         String    @id @default(uuid())
+  testId     String
+  questionId String
+  order      Int
+  test       Test      @relation(fields: [testId], references: [id])
+  question   Question  @relation(fields: [questionId], references: [id])
+  answers    StudentAnswer[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([testId, questionId])
+}
+
+model StudentTest {
+  id            String    @id @default(uuid())
+  studentId     String
+  testId        String
+  startTime     DateTime?
+  endTime       DateTime?
+  remainingTime Int?      // in seconds
+  status        TestStatus @default(NOT_STARTED)
+  currentQuestion Int?
+  answers       StudentAnswer[]
+  student       User      @relation(fields: [studentId], references: [id])
+  test          Test      @relation(fields: [testId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  securityViolations Int   @default(0)
+
+  @@unique([studentId, testId])
+}
+
+enum TestStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  SUBMITTED
+}
+
+model StudentAnswer {
+  id             String    @id @default(uuid())
+  studentTestId  String
+  testQuestionId String
+  selectedOption String?
+  markedForReview Boolean  @default(false)
+  timeSpent      Int?      // in seconds
+  studentTest    StudentTest @relation(fields: [studentTestId], references: [id])
+  testQuestion   TestQuestion @relation(fields: [testQuestionId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([studentTestId, testQuestionId])
+}
